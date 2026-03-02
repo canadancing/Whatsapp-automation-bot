@@ -258,10 +258,11 @@ function App() {
   });
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     fetchData();
     const interval = setInterval(fetchLogsOnly, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isAuthenticated]);
 
   const fetchLogsOnly = async () => {
     try {
