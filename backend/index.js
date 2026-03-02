@@ -44,6 +44,12 @@ try {
 app.use(cors());
 app.use(express.json());
 
+// Serve the built React frontend in production
+const frontendBuildPath = path.resolve(__dirname, '../frontend/dist');
+if (fs.existsSync(frontendBuildPath)) {
+    app.use(express.static(frontendBuildPath));
+}
+
 // Get Config
 app.get('/api/config', async (req, res) => {
     try {
@@ -361,6 +367,13 @@ app.delete('/api/custom-reminders/:id', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// Catch-all: serve React frontend for any non-API route
+if (fs.existsSync(frontendBuildPath)) {
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(frontendBuildPath, 'index.html'));
+    });
+}
 
 app.listen(PORT, async () => {
     console.log(`Backend Running on http://localhost:${PORT}`);

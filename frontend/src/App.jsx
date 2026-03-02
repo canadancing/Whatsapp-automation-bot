@@ -7,7 +7,9 @@ import {
 } from 'lucide-react';
 import './index.css';
 
-const API_URL = 'http://localhost:3001/api';
+const API_URL = window.location.hostname === 'localhost'
+  ? 'http://localhost:3001/api'
+  : '/api';
 
 const createLocalId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 

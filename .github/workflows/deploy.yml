@@ -52,7 +52,13 @@ jobs:
             # 3. Start Docker Databases & API
             docker compose up -d
 
-            # 4. Install production dependencies and restart the backend
+            # 4. Build the frontend dashboard
+            cd frontend
+            npm install
+            npm run build
+            cd ..
+
+            # 5. Install production dependencies and restart the backend
             cd backend
             npm install --production
             pm2 restart whatsapp-dashboard || pm2 start index.js --name whatsapp-dashboard
