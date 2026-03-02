@@ -47,6 +47,7 @@ jobs:
             REDIS_URI=redis://redis:6379/1
             TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
             TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}
+            DASHBOARD_PASSWORD=${{ secrets.DASHBOARD_PASSWORD }}
             EOF
 
             # 3. Start Docker Databases & API

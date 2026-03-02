@@ -1,15 +1,83 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import {
   Clock, Send, Save, LayoutDashboard, Settings2, Bell,
   Calendar, MessageSquare, Activity, CheckCircle, XCircle, Trash2, Plus,
-  Pencil, BarChart3, TrendingUp, AlertTriangle, Zap, Archive, Menu
+  Pencil, BarChart3, TrendingUp, AlertTriangle, Zap, Archive, Menu, LogOut, Lock
 } from 'lucide-react';
 import './index.css';
 
 const API_URL = window.location.hostname === 'localhost'
   ? 'http://localhost:3001/api'
   : '/api';
+
+// ─── Axios auth setup ───────────────────────────────────────────
+const setupAxiosAuth = (token) => {
+  if (token) {
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    delete axios.defaults.headers.common['Authorization'];
+  }
+};
+
+// Restore token on page load
+const storedToken = localStorage.getItem('dashboard_token');
+if (storedToken) setupAxiosAuth(storedToken);
+
+// ─── Login Screen ───────────────────────────────────────────────
+function LoginScreen({ onLogin }) {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await axios.post(`${API_URL}/login`, { password });
+      const { token } = res.data;
+      localStorage.setItem('dashboard_token', token);
+      setupAxiosAuth(token);
+      onLogin();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="login-screen">
+      <form className="login-card glass-card" onSubmit={handleSubmit}>
+        <div className="login-icon">
+          <Lock size={32} />
+        </div>
+        <h1>WA Control Center</h1>
+        <p className="login-subtitle">Enter your dashboard password to continue</p>
+        {error && <div className="login-error">{error}</div>}
+        <input
+          id="login-password"
+          type="password"
+          className="login-input"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoFocus
+          autoComplete="current-password"
+        />
+        <button
+          id="login-submit"
+          type="submit"
+          className="btn btn-primary login-btn"
+          disabled={loading || !password}
+        >
+          {loading ? 'Authenticating...' : 'Log In'}
+        </button>
+      </form>
+    </div>
+  );
+}
 
 const createLocalId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -64,6 +132,63 @@ const makeIcalSource = (source = {}) => ({
 const sectionKeys = ['automation', 'whatsapp', 'telegram', 'collection', 'ical', 'template', 'cleaning', 'settings'];
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('dashboard_token'));
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Verify stored token on mount
+  useEffect(() => {
+    const token = localStorage.getItem('dashboard_token');
+    if (!token) {
+      setAuthChecked(true);
+      return;
+    }
+    axios.get(`${API_URL}/auth-check`)
+      .then(() => { setIsAuthenticated(true); setAuthChecked(true); })
+      .catch(() => {
+        localStorage.removeItem('dashboard_token');
+        setupAxiosAuth(null);
+        setIsAuthenticated(false);
+        setAuthChecked(true);
+      });
+  }, []);
+
+  // Global 401 interceptor
+  useEffect(() => {
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401 && error.config?.url && !error.config.url.endsWith('/login')) {
+          localStorage.removeItem('dashboard_token');
+          setupAxiosAuth(null);
+          setIsAuthenticated(false);
+        }
+        return Promise.reject(error);
+      }
+    );
+    return () => axios.interceptors.response.eject(interceptor);
+  }, []);
+
+  const handleLogout = useCallback(async () => {
+    try { await axios.post(`${API_URL}/logout`); } catch { /* ignore */ }
+    localStorage.removeItem('dashboard_token');
+    setupAxiosAuth(null);
+    setIsAuthenticated(false);
+  }, []);
+
+  if (!authChecked) {
+    return (
+      <div className="login-screen">
+        <div className="login-card glass-card">
+          <p style={{ textAlign: 'center', opacity: 0.7 }}>Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
+  }
+
   const [config, setConfig] = useState({
     schedule: '',
     template: '',
@@ -762,6 +887,15 @@ function App() {
             onClick={() => setActiveTab('settings')}
           >
             <Settings2 size={18} /> <span className="tab-title">Settings</span>
+          </button>
+
+          <div className="sidebar-spacer" />
+          <button
+            className="tab-btn logout-btn"
+            onClick={handleLogout}
+            title="Log Out"
+          >
+            <LogOut size={18} /> <span className="tab-title">Log Out</span>
           </button>
         </div>
       </aside>

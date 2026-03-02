@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const crypto = require('crypto');
 const dotenv = require('dotenv');
 const path = require('path');
 const fs = require('fs');
@@ -49,6 +50,55 @@ const frontendBuildPath = path.resolve(__dirname, '../frontend/dist');
 if (fs.existsSync(frontendBuildPath)) {
     app.use(express.static(frontendBuildPath));
 }
+
+// ─── Authentication ────────────────────────────────────────────────
+const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD || envFileConfig.DASHBOARD_PASSWORD || '';
+const activeSessions = new Set();
+
+// Login endpoint (public)
+app.post('/api/login', (req, res) => {
+    const { password } = req.body || {};
+    if (!DASHBOARD_PASSWORD) {
+        return res.status(500).json({ error: 'DASHBOARD_PASSWORD is not configured on the server.' });
+    }
+    if (password !== DASHBOARD_PASSWORD) {
+        return res.status(401).json({ error: 'Invalid password.' });
+    }
+    const token = crypto.randomBytes(32).toString('hex');
+    activeSessions.add(token);
+    res.json({ success: true, token });
+});
+
+// Logout endpoint
+app.post('/api/logout', (req, res) => {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    activeSessions.delete(token);
+    res.json({ success: true });
+});
+
+// Auth check endpoint (so the frontend can verify a stored token)
+app.get('/api/auth-check', (req, res) => {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    if (token && activeSessions.has(token)) {
+        return res.json({ authenticated: true });
+    }
+    return res.status(401).json({ authenticated: false });
+});
+
+// Auth middleware — protects every /api/* route registered AFTER this
+app.use('/api', (req, res, next) => {
+    // Skip if no password is set (local dev convenience)
+    if (!DASHBOARD_PASSWORD) return next();
+
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '');
+    if (token && activeSessions.has(token)) {
+        return next();
+    }
+    return res.status(401).json({ error: 'Unauthorized. Please log in.' });
+});
 
 // Get Config
 app.get('/api/config', async (req, res) => {
