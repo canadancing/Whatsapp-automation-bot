@@ -600,22 +600,24 @@ const initScheduler = async () => {
     if (collectionAlertJob) collectionAlertJob.stop();
     if (cleaningReminderJob) cleaningReminderJob.stop();
 
+    const tz = process.env.TIMEZONE || 'America/Vancouver';
+
     if (dailySchedule) {
-        dailyDutyJob = cron.schedule(dailySchedule, () => sendWhatsAppMessage(false));
+        dailyDutyJob = cron.schedule(dailySchedule, () => sendWhatsAppMessage(false), { timezone: tz });
         console.log(`Daily duty scheduler initialized with cron pattern: "${dailySchedule}"`);
     }
 
     const collectionEnabled = isTruthy(config.collection_alert_enabled, true);
     if (collectionEnabled) {
         const collectionCron = parseTimeToCron(config.collection_alert_time);
-        collectionAlertJob = cron.schedule(collectionCron, () => sendCollectionAlert(false));
+        collectionAlertJob = cron.schedule(collectionCron, () => sendCollectionAlert(false), { timezone: tz });
         console.log(`Collection alert scheduler initialized with cron pattern: "${collectionCron}"`);
     }
 
     const cleaningEnabled = isTruthy(config.cleaning_reminder_enabled, true);
     if (cleaningEnabled) {
         const cleaningCron = config.cleaning_reminder_schedule || '0 16 * * 0';
-        cleaningReminderJob = cron.schedule(cleaningCron, () => sendCleaningReminder(false));
+        cleaningReminderJob = cron.schedule(cleaningCron, () => sendCleaningReminder(false), { timezone: tz });
         console.log(`Weekly reminder scheduler initialized with cron pattern: "${cleaningCron}"`);
     }
 
@@ -627,7 +629,7 @@ const initScheduler = async () => {
         const customReminders = await getCustomReminders();
         for (const reminder of customReminders) {
             if (reminder.enabled && reminder.cron_schedule) {
-                const job = cron.schedule(reminder.cron_schedule, () => sendCustomReminder(reminder, false));
+                const job = cron.schedule(reminder.cron_schedule, () => sendCustomReminder(reminder, false), { timezone: tz });
                 customReminderJobs[reminder.id] = job;
                 console.log(`Custom reminder [${reminder.title}] initialized with cron pattern: "${reminder.cron_schedule}"`);
             }
