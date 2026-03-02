@@ -370,7 +370,7 @@ app.delete('/api/custom-reminders/:id', async (req, res) => {
 
 // Catch-all: serve React frontend for any non-API route
 if (fs.existsSync(frontendBuildPath)) {
-    app.get('*', (req, res) => {
+    app.get('/{*splat}', (req, res) => {
         res.sendFile(path.join(frontendBuildPath, 'index.html'));
     });
 }
