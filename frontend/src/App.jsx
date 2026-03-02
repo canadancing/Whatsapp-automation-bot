@@ -175,19 +175,6 @@ function App() {
     setIsAuthenticated(false);
   }, []);
 
-  if (!authChecked) {
-    return (
-      <div className="login-screen">
-        <div className="login-card glass-card">
-          <p style={{ textAlign: 'center', opacity: 0.7 }}>Checking authentication...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
-  }
 
   const [config, setConfig] = useState({
     schedule: '',
@@ -805,6 +792,20 @@ function App() {
       default: return 'WhatsApp Control Center';
     }
   };
+
+  if (!authChecked) {
+    return (
+      <div className="login-screen">
+        <div className="login-card glass-card">
+          <p style={{ textAlign: 'center', opacity: 0.7 }}>Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
+  }
 
   return (
     <div className="app-layout">
