@@ -1,0 +1,23 @@
+# Environment Variables
+.env
+.env.*
+!.env.example
+*.png
+*.sqlite
+
+
+# Runtime Data & Databases
+data/
+logs/
+
+# Node modules
+node_modules/
+
+# OS/System Files
+.DS_Store
+Thumbs.db
+
+# Build outputs
+frontend/dist/
+dist/
+build/
