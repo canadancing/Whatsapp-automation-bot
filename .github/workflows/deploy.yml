@@ -26,10 +26,27 @@ jobs:
 
             # 2. Inject Secrets into .env file
             cat <<EOF > .env
+            EVOLUTION_BASE_URL=http://127.0.0.1:8080
             EVOLUTION_API_KEY=${{ secrets.EVOLUTION_API_KEY }}
+            EVOLUTION_INSTANCE=my-whatsapp
+            WHATSAPP_GROUP_JID=${{ secrets.WHATSAPP_GROUP_JID }}
+            MESSAGE_TEXT=Daily automated message
+            SEND_ENDPOINT_TEMPLATE=/message/sendText/{instance}
+            MAX_RETRIES=5
+            RETRY_BASE_SECONDS=2
+            REQUEST_TIMEOUT_SECONDS=15
+            STATE_DIR=./state
+            LOG_FILE=./state/sender.log
+            AUTHENTICATION_TYPE=apikey
+            AUTHENTICATION_API_KEY=${{ secrets.EVOLUTION_API_KEY }}
+            DATABASE_ENABLED=true
+            DATABASE_PROVIDER=postgresql
+            DATABASE_CONNECTION_URI=postgresql://evolution:evolutionpassword@postgres:5432/evolution?schema=public
+            CACHE_REDIS_ENABLED=true
+            CACHE_REDIS_URI=redis://redis:6379/6
+            REDIS_URI=redis://redis:6379/1
             TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
             TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}
-            WHATSAPP_GROUP_JID=${{ secrets.WHATSAPP_GROUP_JID }}
             EOF
 
             # 3. Start Docker Databases & API
