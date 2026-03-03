@@ -227,6 +227,7 @@ function App() {
   const [editingTitle, setEditingTitle] = useState(null);
   const [activeTab, setActiveTab] = useState('analytics');
   const [status, setStatus] = useState('Loading...');
+  const [testTargets, setTestTargets] = useState([]);
   const [isTesting, setIsTesting] = useState(false);
   const [isTestingTelegram, setIsTestingTelegram] = useState(false);
   const [isTestingCollectionSend, setIsTestingCollectionSend] = useState(false);
@@ -674,7 +675,7 @@ function App() {
   const handleTestSend = async () => {
     setIsTesting(true);
     try {
-      await axios.post(`${API_URL}/test-send`);
+      await axios.post(`${API_URL}/test-send`, { testTargetJids: testTargets });
       setStatus('Test Message Triggered!');
       setTimeout(() => setStatus('Connected & Active'), 3000);
       setTimeout(fetchLogsOnly, 2000);
@@ -737,7 +738,7 @@ function App() {
     try {
       await saveSection('collection');
       await saveSection('ical');
-      await axios.post(`${API_URL}/test-collection-send`);
+      await axios.post(`${API_URL}/test-collection-send`, { testTargetJids: testTargets });
       setStatus('Collection Test Send Triggered!');
       setTimeout(() => setStatus('Connected & Active'), 2500);
       setTimeout(fetchLogsOnly, 1500);
@@ -754,7 +755,7 @@ function App() {
     setIsTestingCleaningSend(true);
     try {
       await saveSection('cleaning');
-      await axios.post(`${API_URL}/test-cleaning-send`);
+      await axios.post(`${API_URL}/test-cleaning-send`, { testTargetJids: testTargets });
       setStatus('Cleaning Reminder Triggered!');
       setTimeout(() => setStatus('Connected & Active'), 2500);
       setTimeout(fetchLogsOnly, 1500);
@@ -933,7 +934,7 @@ function App() {
                     onClick={() => saveSection('automation')}
                     disabled={savingState.automation || !isSectionDirty('automation')}
                   >
-                    <Save size={14} />
+                    <Save size={16} />
                   </button>
                 </div>
               </div>
@@ -972,7 +973,7 @@ function App() {
                     onClick={() => saveSection('template')}
                     disabled={savingState.template || !isSectionDirty('template')}
                   >
-                    <Save size={14} />
+                    <Save size={16} />
                   </button>
                 </div>
               </div>
@@ -1024,7 +1025,7 @@ function App() {
                     onClick={() => saveSection('collection')}
                     disabled={savingState.collection || !isSectionDirty('collection')}
                   >
-                    <Save size={14} />
+                    <Save size={16} />
                   </button>
                 </div>
               </div>
@@ -1132,7 +1133,7 @@ function App() {
                     onClick={() => saveSection('ical')}
                     disabled={savingState.ical || !isSectionDirty('ical')}
                   >
-                    <Save size={14} />
+                    <Save size={16} />
                   </button>
                 </div>
               </div>
@@ -1221,7 +1222,7 @@ function App() {
                     onClick={() => saveSection('cleaning')}
                     disabled={savingState.cleaning || !isSectionDirty('cleaning')}
                   >
-                    <Save size={14} />
+                    <Save size={16} />
                   </button>
                 </div>
               </div>
@@ -1325,7 +1326,7 @@ function App() {
                     onClick={() => saveSection('telegram')}
                     disabled={savingState.telegram || !isSectionDirty('telegram')}
                   >
-                    <Save size={14} />
+                    <Save size={16} />
                   </button>
                 </div>
               </div>
@@ -1556,7 +1557,7 @@ function App() {
                       onClick={() => saveSection('whatsapp')}
                       disabled={savingState.whatsapp || !isSectionDirty('whatsapp')}
                     >
-                      <Save size={14} />
+                      <Save size={16} />
                     </button>
                   </div>
                 </div>
@@ -1612,6 +1613,17 @@ function App() {
                               </label>
                             );
                           })}
+                          <label className="toggle-label" title="Test this target only" style={{ borderLeft: '1px solid var(--card-border)', paddingLeft: '12px', marginLeft: '4px' }}>
+                            <input
+                              type="checkbox"
+                              checked={testTargets.includes(target.jid)}
+                              onChange={(e) => {
+                                if (e.target.checked) setTestTargets((prev) => [...prev, target.jid]);
+                                else setTestTargets((prev) => prev.filter((j) => j !== target.jid));
+                              }}
+                            />
+                            🧪 Test Target
+                          </label>
                         </div>
                         <button
                           className="btn btn-secondary"

@@ -258,7 +258,7 @@ app.get('/api/logs/stats', async (req, res) => {
 app.post('/api/test-send', async (req, res) => {
     try {
         await addLog('SYSTEM', 'Manual Validation Triggered', 'User requested a test send.');
-        sendWhatsAppMessage(true); // Call asynchronously
+        sendWhatsAppMessage(true, { testTargetJids: req.body.testTargetJids }); // Call asynchronously
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -292,7 +292,7 @@ app.get('/api/preview-message', async (req, res) => {
 app.post('/api/test-collection-send', async (req, res) => {
     try {
         await addLog('SYSTEM', 'Collection Alert Test Triggered', 'User requested a manual collection alert test send.');
-        sendCollectionAlert(true, { forceSend: true });
+        sendCollectionAlert(true, { forceSend: true, testTargetJids: req.body.testTargetJids });
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -318,7 +318,7 @@ app.get('/api/preview-cleaning', async (req, res) => {
 app.post('/api/test-cleaning-send', async (req, res) => {
     try {
         await addLog('SYSTEM', 'Cleaning Reminder Test Triggered', 'User requested a manual cleaning reminder send.');
-        sendCleaningReminder(true);
+        sendCleaningReminder(true, { testTargetJids: req.body.testTargetJids });
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });

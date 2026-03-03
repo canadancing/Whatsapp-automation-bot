@@ -376,10 +376,10 @@ const generateCollectionAlertPreview = async () => {
     };
 };
 
-const sendWhatsAppMessage = async (isManual = false) => {
+const sendWhatsAppMessage = async (isManual = false, options = {}) => {
     try {
         const preview = await generateDailyDutyPreview(isManual);
-        const { config, finalTargetJids, finalMessage, skipScheduled } = preview;
+        let { config, finalTargetJids, finalMessage, skipScheduled } = preview;
 
         if (!preview.canSend) {
             await addLog('ERROR', 'Missing Template or JID', 'Cannot send daily duty alert without template/target configuration.');
@@ -389,6 +389,10 @@ const sendWhatsAppMessage = async (isManual = false) => {
         if (skipScheduled) {
             await addLog('SKIPPED', 'Sunday Rest Day', 'Daily duty alert skipped automatically on Sunday.');
             return { status: 'SKIPPED', action: 'daily-duty', detail: 'Skipped on Sunday.' };
+        }
+
+        if (options.testTargetJids && options.testTargetJids.length > 0) {
+            finalTargetJids = options.testTargetJids;
         }
 
         const { waDelivered, waResults, configError } = await sendToWhatsAppTargets(finalTargetJids, finalMessage);
@@ -433,7 +437,7 @@ const sendWhatsAppMessage = async (isManual = false) => {
 const sendCollectionAlert = async (isManual = false, options = {}) => {
     try {
         const preview = await generateCollectionAlertPreview();
-        const {
+        let {
             config,
             finalTargetJids,
             finalMessage,
@@ -468,6 +472,10 @@ const sendCollectionAlert = async (isManual = false, options = {}) => {
                 action: 'collection-alert',
                 detail: `Not due yet (${collectionInfo.daysUntilCollection} days remaining).`
             };
+        }
+
+        if (options.testTargetJids && options.testTargetJids.length > 0) {
+            finalTargetJids = options.testTargetJids;
         }
 
         const { waDelivered, waResults, configError } = await sendToWhatsAppTargets(finalTargetJids, finalMessage);
@@ -529,10 +537,10 @@ const generateCleaningReminderPreview = async () => {
     };
 };
 
-const sendCleaningReminder = async (isManual = false) => {
+const sendCleaningReminder = async (isManual = false, options = {}) => {
     try {
         const preview = await generateCleaningReminderPreview();
-        const { config, finalTargetJids, finalMessage } = preview;
+        let { config, finalTargetJids, finalMessage } = preview;
 
         if (!preview.canSend) {
             await addLog('ERROR', 'Missing Cleaning Template or JID', 'Cannot send cleaning reminder without template/target configuration.');
