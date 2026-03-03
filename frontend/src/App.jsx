@@ -663,7 +663,7 @@ function App() {
   const getSectionStatusText = (section) => {
     if (savingState[section]) return 'Saving...';
     if (saveErrors[section]) return 'Save Failed';
-    return isSectionDirty(section) ? 'Unsaved Changes' : 'Saved';
+    return isSectionDirty(section) ? 'Unsaved Changes' : null;
   };
 
   const getSectionStatusClass = (section) => {
@@ -925,11 +925,13 @@ function App() {
                   Automation Engine
                 </div>
                 <div className="card-header-tools">
-                  <div className={`card-header-status ${getSectionStatusClass('automation')}`}>
-                    {getSectionStatusText('automation')}
-                  </div>
+                  {getSectionStatusText('automation') && (
+                    <div className={`card-header-status ${getSectionStatusClass('automation')}`}>
+                      {getSectionStatusText('automation')}
+                    </div>
+                  )}
                   <button
-                    className="btn btn-secondary mini-save-btn"
+                    className="btn btn-secondary icon-btn"
                     title="Save Automation"
                     onClick={() => saveSection('automation')}
                     disabled={savingState.automation || !isSectionDirty('automation')}
@@ -964,11 +966,13 @@ function App() {
                   Message Context Blueprint
                 </div>
                 <div className="card-header-tools">
-                  <div className={`card-header-status ${getSectionStatusClass('template')}`}>
-                    {getSectionStatusText('template')}
-                  </div>
+                  {getSectionStatusText('template') && (
+                    <div className={`card-header-status ${getSectionStatusClass('template')}`}>
+                      {getSectionStatusText('template')}
+                    </div>
+                  )}
                   <button
-                    className="btn btn-secondary mini-save-btn"
+                    className="btn btn-secondary icon-btn"
                     title="Save Template"
                     onClick={() => saveSection('template')}
                     disabled={savingState.template || !isSectionDirty('template')}
@@ -1016,11 +1020,13 @@ function App() {
                   {config.collection_calendar_title || 'Collection Calendar'} Configuration
                 </div>
                 <div className="card-header-tools">
-                  <div className={`card-header-status ${getSectionStatusClass('collection')}`}>
-                    {getSectionStatusText('collection')}
-                  </div>
+                  {getSectionStatusText('collection') && (
+                    <div className={`card-header-status ${getSectionStatusClass('collection')}`}>
+                      {getSectionStatusText('collection')}
+                    </div>
+                  )}
                   <button
-                    className="btn btn-secondary mini-save-btn"
+                    className="btn btn-secondary icon-btn"
                     title="Save Collection Alert"
                     onClick={() => saveSection('collection')}
                     disabled={savingState.collection || !isSectionDirty('collection')}
@@ -1124,11 +1130,13 @@ function App() {
                   {config.collection_calendar_title || 'Collection Calendar'} Sources
                 </div>
                 <div className="card-header-tools">
-                  <div className={`card-header-status ${getSectionStatusClass('ical')}`}>
-                    {getSectionStatusText('ical')}
-                  </div>
+                  {getSectionStatusText('ical') && (
+                    <div className={`card-header-status ${getSectionStatusClass('ical')}`}>
+                      {getSectionStatusText('ical')}
+                    </div>
+                  )}
                   <button
-                    className="btn btn-secondary mini-save-btn"
+                    className="btn btn-secondary icon-btn"
                     title="Save iCal Sources"
                     onClick={() => saveSection('ical')}
                     disabled={savingState.ical || !isSectionDirty('ical')}
@@ -1155,9 +1163,8 @@ function App() {
                         Available
                       </label>
                       <button
-                        className="btn btn-secondary"
+                        className="btn btn-secondary icon-btn"
                         title="Delete iCal source"
-                        style={{ width: 'auto', padding: '8px 10px' }}
                         onClick={() => deleteListItem('ical_sources', source.localId)}
                       >
                         <Trash2 size={16} />
@@ -1213,11 +1220,13 @@ function App() {
                   🧹 {config.weekly_reminder_title || 'Weekly Reminder'}
                 </div>
                 <div className="card-header-tools">
-                  <div className={`card-header-status ${getSectionStatusClass('cleaning')}`}>
-                    {getSectionStatusText('cleaning')}
-                  </div>
+                  {getSectionStatusText('cleaning') && (
+                    <div className={`card-header-status ${getSectionStatusClass('cleaning')}`}>
+                      {getSectionStatusText('cleaning')}
+                    </div>
+                  )}
                   <button
-                    className="btn btn-secondary mini-save-btn"
+                    className="btn btn-secondary icon-btn"
                     title="Save Reminder Details"
                     onClick={() => saveSection('cleaning')}
                     disabled={savingState.cleaning || !isSectionDirty('cleaning')}
@@ -1317,11 +1326,13 @@ function App() {
                   Telegram Summary Notifications (Optional)
                 </div>
                 <div className="card-header-tools">
-                  <div className={`card-header-status ${getSectionStatusClass('telegram')}`}>
-                    {getSectionStatusText('telegram')}
-                  </div>
+                  {getSectionStatusText('telegram') && (
+                    <div className={`card-header-status ${getSectionStatusClass('telegram')}`}>
+                      {getSectionStatusText('telegram')}
+                    </div>
+                  )}
                   <button
-                    className="btn btn-secondary mini-save-btn"
+                    className="btn btn-secondary icon-btn"
                     title="Save Telegram Settings"
                     onClick={() => saveSection('telegram')}
                     disabled={savingState.telegram || !isSectionDirty('telegram')}
@@ -1548,11 +1559,13 @@ function App() {
                     WhatsApp Targets
                   </div>
                   <div className="card-header-tools">
-                    <div className={`card-header-status ${getSectionStatusClass('whatsapp')}`}>
-                      {getSectionStatusText('whatsapp')}
-                    </div>
+                    {getSectionStatusText('whatsapp') && (
+                      <div className={`card-header-status ${getSectionStatusClass('whatsapp')}`}>
+                        {getSectionStatusText('whatsapp')}
+                      </div>
+                    )}
                     <button
-                      className="btn btn-secondary mini-save-btn"
+                      className="btn btn-secondary icon-btn"
                       title="Save WhatsApp Targets"
                       onClick={() => saveSection('whatsapp')}
                       disabled={savingState.whatsapp || !isSectionDirty('whatsapp')}
@@ -1626,9 +1639,8 @@ function App() {
                           </label>
                         </div>
                         <button
-                          className="btn btn-secondary"
+                          className="btn btn-secondary icon-btn"
                           title="Delete target"
-                          style={{ width: 'auto', padding: '8px 10px' }}
                           onClick={() => deleteListItem('whatsapp_targets', target.localId)}
                         >
                           <Trash2 size={16} />
@@ -1702,28 +1714,24 @@ function App() {
                         </div>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button
-                            className="btn btn-secondary"
+                            className="btn btn-secondary icon-btn"
                             title="Test Send"
-                            style={{ width: 'auto', padding: '8px 10px' }}
                             onClick={() => handleTestCustomReminder(reminder.id)}
                             disabled={reminder.isNew}
                           >
                             <Send size={16} />
                           </button>
                           <button
-                            className="btn btn-secondary"
+                            className="btn btn-secondary icon-btn"
                             title="Save Reminder"
-                            style={{ width: 'auto', padding: '8px 10px' }}
                             onClick={() => handleSaveCustomReminder(reminder)}
                           >
                             <Save size={16} />
                           </button>
                           <button
-                            className={`btn btn-secondary ${confirmDeleteId === reminder.id ? 'btn-danger' : ''}`}
+                            className={`btn btn-secondary icon-btn ${confirmDeleteId === reminder.id ? 'btn-danger' : ''}`}
                             title={confirmDeleteId === reminder.id ? "Click again to confirm" : "Delete Reminder"}
                             style={{
-                              width: 'auto',
-                              padding: '8px 10px',
                               backgroundColor: confirmDeleteId === reminder.id ? '#ff4b4b' : '',
                               color: confirmDeleteId === reminder.id ? '#fff' : ''
                             }}

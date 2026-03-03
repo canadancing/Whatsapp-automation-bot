@@ -119,9 +119,20 @@ const getCollectionEventByOffsetDays = async (icalUrl, offsetDays = 1) => {
         for (const key in events) {
             if (!Object.prototype.hasOwnProperty.call(events, key)) continue;
             const ev = events[key];
-            if (ev.type !== 'VEVENT' || !ev.start) continue;
+            const evDateRaw = new Date(ev.start);
+            let evYear, evMonth, evDay;
+            if (ev.start.dateOnly || (evDateRaw.getUTCHours() === 0 && evDateRaw.getUTCMinutes() === 0)) {
+                evYear = evDateRaw.getUTCFullYear();
+                evMonth = evDateRaw.getUTCMonth();
+                evDay = evDateRaw.getUTCDate();
+            } else {
+                const evLocal = getLocalComponents(evDateRaw);
+                evYear = evLocal.year;
+                evMonth = evLocal.month;
+                evDay = evLocal.day;
+            }
+            const evDate = new Date(evYear, evMonth, evDay);
 
-            const evDate = new Date(ev.start);
             if (isSameDayInTimezone(evDate, targetDate)) {
                 wasteType = ev.summary || 'Collection Event';
                 hasCollection = true;
@@ -173,8 +184,18 @@ const getNextCollectionEvent = async (icalUrl) => {
             if (ev.type !== 'VEVENT' || !ev.start) continue;
 
             const evDateRaw = new Date(ev.start);
-            const evLocal = getLocalComponents(evDateRaw);
-            const evDate = new Date(evLocal.year, evLocal.month, evLocal.day);
+            let evYear, evMonth, evDay;
+            if (ev.start.dateOnly || (evDateRaw.getUTCHours() === 0 && evDateRaw.getUTCMinutes() === 0)) {
+                evYear = evDateRaw.getUTCFullYear();
+                evMonth = evDateRaw.getUTCMonth();
+                evDay = evDateRaw.getUTCDate();
+            } else {
+                const evLocal = getLocalComponents(evDateRaw);
+                evYear = evLocal.year;
+                evMonth = evLocal.month;
+                evDay = evLocal.day;
+            }
+            const evDate = new Date(evYear, evMonth, evDay);
 
             if (evDate < today) continue;
 

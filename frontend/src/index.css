@@ -353,12 +353,15 @@ textarea {
   width: auto;
 }
 
-.mini-save-btn {
-  width: auto;
-  min-width: unset;
-  height: auto;
-  padding: 8px 10px;
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 8px;
+  flex-shrink: 0;
 }
 
 .preview-panel {
