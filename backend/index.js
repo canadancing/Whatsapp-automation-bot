@@ -26,6 +26,7 @@ const {
     sendCollectionAlert,
     sendCleaningReminder,
     generateCollectionAlertPreview,
+    generateDailyDutyPreview,
     generateCleaningReminderPreview,
     sendCustomReminder
 } = require('./scheduler');
@@ -257,9 +258,25 @@ app.get('/api/logs/stats', async (req, res) => {
 // Trigger a manual send for testing
 app.post('/api/test-send', async (req, res) => {
     try {
-        await addLog('SYSTEM', 'Manual Validation Triggered', 'User requested a test send.');
+        await addLog('SYSTEM', 'Manual Validation Triggered', 'User requested a manual daily duty test send.');
         sendWhatsAppMessage(true, { testTargetJids: req.body.testTargetJids }); // Call asynchronously
         res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Preview daily duty alert message without sending
+app.get('/api/preview-daily-duty', async (req, res) => {
+    try {
+        const preview = await generateDailyDutyPreview();
+        res.json({
+            success: true,
+            message: preview.finalMessage || '',
+            targets: preview.finalTargetJids || [],
+            skip_scheduled: Boolean(preview.skipScheduled),
+            can_send: Boolean(preview.canSend)
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -269,16 +286,28 @@ app.post('/api/test-send', async (req, res) => {
 app.get('/api/preview-message', async (req, res) => {
     try {
         const preview = await generateCollectionAlertPreview();
+
+        let nextDateFormatted = '';
+        let nextDayName = '';
+        if (preview.collectionInfo?.nextCollectionDateStr) {
+            const parts = preview.collectionInfo.nextCollectionDateStr.split('-');
+            const nextDateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+            nextDateFormatted = nextDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            nextDayName = nextDateObj.toLocaleDateString('en-US', { weekday: 'long' });
+        }
+
         res.json({
             success: true,
             message: preview.finalMessage || '',
             targets: preview.finalTargetJids || [],
             waste_type: preview.collectionInfo?.wasteType || '',
-            collection_date: preview.collectionInfo?.eventDateLabel || '',
+            collection_date: preview.collectionInfo?.targetDateLabel || '',
             collection_exists: Boolean(preview.collectionInfo?.hasCollection),
-            days_until_collection: preview.collectionInfo?.daysUntilCollection,
             days_before: preview.daysBefore || 1,
             should_send_today: Boolean(preview.shouldSendToday),
+            next_collection_date: nextDateFormatted,
+            next_collection_day_name: nextDayName,
+            next_collection_waste_type: preview.collectionInfo?.nextWasteType || '',
             active_ical_url: preview.activeIcalUrl || '',
             has_template: Boolean(preview.template),
             can_send: Boolean(preview.canSend)

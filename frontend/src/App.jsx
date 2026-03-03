@@ -231,11 +231,17 @@ function App() {
   const [isTesting, setIsTesting] = useState(false);
   const [isTestingTelegram, setIsTestingTelegram] = useState(false);
   const [isTestingCollectionSend, setIsTestingCollectionSend] = useState(false);
+  const [isTestingCleaningSend, setIsTestingCleaningSend] = useState(false);
+  const [isSavingTargetModal, setIsSavingTargetModal] = useState(false);
+
+  const [isPreviewingDailyDuty, setIsPreviewingDailyDuty] = useState(false);
   const [isPreviewingMessage, setIsPreviewingMessage] = useState(false);
   const [isPreviewingCleaning, setIsPreviewingCleaning] = useState(false);
-  const [isTestingCleaningSend, setIsTestingCleaningSend] = useState(false);
+  const [dailyDutyPreview, setDailyDutyPreview] = useState(null);
   const [messagePreview, setMessagePreview] = useState(null);
   const [cleaningPreview, setCleaningPreview] = useState(null);
+
+  // Stats array
   const [savingState, setSavingState] = useState({
     automation: false,
     whatsapp: false,
@@ -718,6 +724,20 @@ function App() {
     }
   };
 
+  const handlePreviewDailyDuty = async () => {
+    setIsPreviewingDailyDuty(true);
+    setDailyDutyPreview(null);
+    try {
+      const res = await axios.get(`${API_URL}/preview-daily-duty`);
+      setDailyDutyPreview(res.data);
+    } catch (error) {
+      console.error('Failed to preview daily duty:', error);
+      alert(error.response?.data?.error || 'Failed to preview daily duty message');
+    } finally {
+      setIsPreviewingDailyDuty(false);
+    }
+  };
+
   const handlePreviewMessage = async () => {
     setIsPreviewingMessage(true);
     try {
@@ -1001,13 +1021,40 @@ function App() {
             </div>
 
             <div className="action-row">
-              <button className="btn" onClick={() => saveSection('all')} disabled={savingState.all || !sectionKeys.some((k) => isSectionDirty(k))}>
-                <Save size={18} /> {savingState.all ? 'Saving All...' : 'Save All Changes'}
+              <button
+                className="btn btn-secondary"
+                onClick={handlePreviewDailyDuty}
+                disabled={isPreviewingDailyDuty}
+              >
+                <MessageSquare size={16} /> {isPreviewingDailyDuty ? 'Previewing...' : 'Alert Preview'}
               </button>
-              <button className="btn btn-secondary" onClick={handleTestSend} disabled={isTesting}>
-                <Send size={18} /> {isTesting ? 'Sending Trigger...' : 'Manually Trigger Send'}
+              <button className="btn" onClick={handleTestSend} disabled={isTesting}>
+                <Send size={18} /> {isTesting ? 'Sending Trigger...' : 'Send Test Now'}
               </button>
             </div>
+            {getSectionStatusText('all') && (
+              <div className={`status-badge ${getSectionStatusText('all').includes('Failed') ? 'status-error' : 'status-unsaved'}`}>
+                {getSectionStatusText('all')}
+              </div>
+            )}
+
+            {dailyDutyPreview && (
+              <div className="preview-panel" style={{ marginTop: '16px' }}>
+                <div className="preview-title">Daily Duty Alert Preview</div>
+                <div className="preview-meta">
+                  Targets: {(dailyDutyPreview.targets || []).join(', ') || 'None configured'}
+                </div>
+                <div className="preview-meta">
+                  Can send: {dailyDutyPreview.can_send ? 'Yes' : 'No — check targets & template'}
+                </div>
+                {dailyDutyPreview.skip_scheduled && (
+                  <div className="preview-meta status-unsaved" style={{ marginTop: '4px' }}>
+                    Note: Scheduled alert will skip on Sunday.
+                  </div>
+                )}
+                <pre className="preview-message">{dailyDutyPreview.message || '(No message generated)'}</pre>
+              </div>
+            )}
           </div>
         )}
 
@@ -1092,7 +1139,7 @@ function App() {
                   onClick={handlePreviewMessage}
                   disabled={isPreviewingMessage}
                 >
-                  <MessageSquare size={16} /> {isPreviewingMessage ? 'Previewing...' : 'Test Alert Preview'}
+                  <MessageSquare size={16} /> {isPreviewingMessage ? 'Previewing...' : 'Alert Preview'}
                 </button>
                 <button
                   className="btn btn-secondary"

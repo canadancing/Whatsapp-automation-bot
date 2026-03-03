@@ -71,8 +71,8 @@ const isTruthy = (value, fallback = false) => {
 };
 
 const parseDaysBefore = (value) => {
-    const parsed = Number.parseInt(String(value ?? '1'), 10);
-    if (Number.isNaN(parsed)) return 1;
+    const parsed = Number.parseInt(String(value ?? '0'), 10);
+    if (Number.isNaN(parsed)) return 0;
     return Math.max(0, Math.min(14, parsed));
 };
 
@@ -182,6 +182,7 @@ const checkCollectionForDate = async (icalUrl, targetDate) => {
         for (const key in events) {
             if (!Object.prototype.hasOwnProperty.call(events, key)) continue;
             const ev = events[key];
+            if (!ev.start) continue; // Skip non-event entries (like VCALENDAR, VTIMEZONE)
             const evDateRaw = new Date(ev.start);
 
             let evYear, evMonth, evDay;
@@ -200,11 +201,12 @@ const checkCollectionForDate = async (icalUrl, targetDate) => {
             if (isSameDayInTimezone(evDate, targetDate)) {
                 wasteType = ev.summary || 'Collection Event';
                 hasCollection = true;
-                // Don't break here! We need to continue scanning for the NEXT event
             } else if (evDate > targetDate) {
-                // Find the soonest event AFTER the target collection date
                 if (!nextCollectionDateStr || evDate < new Date(nextCollectionDateStr)) {
-                    nextCollectionDateStr = evDate.toISOString().split('T')[0];
+                    const localEvMonth = evDate.getMonth() + 1;
+                    const localEvDay = evDate.getDate();
+                    const localEvYear = evDate.getFullYear();
+                    nextCollectionDateStr = `${localEvYear}-${localEvMonth.toString().padStart(2, '0')}-${localEvDay.toString().padStart(2, '0')}`;
                     nextWasteType = ev.summary || 'Collection Event';
                 }
             }
@@ -442,51 +444,103 @@ const generateCollectionAlertPreview = async () => {
         const defaultTemplate =
             '🚛 *Collection Reminder*\n\nUpcoming collection: *{collection_waste_type}*\nCollection day: *{collection_date}* ({collection_day_name})\nAlert lead time: {days_until_collection} day(s).\n\nNext scheduled collection: *{next_collection_waste_type}* on *{next_collection_date}* ({next_collection_day_name}).';
 
-        const todayMs = new Date().setHours(0, 0, 0, 0);
-        const targetDate = new Date(todayMs + daysBefore * 24 * 60 * 60 * 1000);
-        const dateStr = targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        const dayName = targetDate.toLocaleDateString('en-US', { weekday: 'long' });
-
-        let collectionInfo = { hasCollection: false, wasteType: '', nextCollectionDateStr: '', nextWasteType: '' };
-
+        // Step 1: Find the actual next collection event from iCal
         const enabledIcalSources = await getEnabledIcalSources();
         const icalSources = enabledIcalSources.length > 0 ? enabledIcalSources : (config.ical_url ? [{ url: config.ical_url }] : []);
 
+        let upcomingCollection = null; // The next collection event
+        let secondCollection = null;  // The collection after that
+
         for (const source of icalSources) {
-            if (!isTruthy(source.enabled) && source.url !== config.ical_url) continue; // Only check enabled sources or the legacy config.ical_url
-            const info = await checkCollectionForDate(source.url, targetDate);
-            if (info.hasCollection) {
-                collectionInfo = info;
-                break;
-            } else if (info.nextCollectionDateStr) {
-                // Keep track of next event even if targetDate has no collection
-                if (!collectionInfo.nextCollectionDateStr || new Date(info.nextCollectionDateStr) < new Date(collectionInfo.nextCollectionDateStr)) {
-                    collectionInfo.nextCollectionDateStr = info.nextCollectionDateStr;
-                    collectionInfo.nextWasteType = info.nextWasteType;
+            if (!isTruthy(source.enabled) && source.url !== config.ical_url) continue;
+
+            try {
+                const res = await axios.get(source.url);
+                const events = ical.parseICS(res.data);
+
+                const localNow = getLocalComponents(new Date());
+                const today = new Date(localNow.year, localNow.month, localNow.day);
+
+                // Collect all future events, sorted by date
+                const futureEvents = [];
+                for (const key in events) {
+                    if (!Object.prototype.hasOwnProperty.call(events, key)) continue;
+                    const ev = events[key];
+                    if (!ev.start) continue;
+
+                    const evDateRaw = new Date(ev.start);
+                    let evYear, evMonth, evDay;
+                    if (ev.start.dateOnly || (evDateRaw.getUTCHours() === 0 && evDateRaw.getUTCMinutes() === 0)) {
+                        evYear = evDateRaw.getUTCFullYear();
+                        evMonth = evDateRaw.getUTCMonth();
+                        evDay = evDateRaw.getUTCDate();
+                    } else {
+                        const evLocal = getLocalComponents(evDateRaw);
+                        evYear = evLocal.year;
+                        evMonth = evLocal.month;
+                        evDay = evLocal.day;
+                    }
+                    const evDate = new Date(evYear, evMonth, evDay);
+
+                    if (evDate >= today) {
+                        futureEvents.push({ date: evDate, wasteType: ev.summary || 'Collection Event' });
+                    }
                 }
+
+                // Sort by date ascending
+                futureEvents.sort((a, b) => a.date - b.date);
+
+                // First event = upcoming collection, second = the one after
+                if (futureEvents.length > 0 && (!upcomingCollection || futureEvents[0].date < upcomingCollection.date)) {
+                    upcomingCollection = futureEvents[0];
+                    secondCollection = futureEvents.length > 1 ? futureEvents[1] : null;
+                }
+            } catch (err) {
+                console.error('Error fetching iCal source:', err.message);
             }
         }
 
         const template = config.collection_template || defaultTemplate;
 
-        let nextDateFormatted = '';
-        let nextDayName = '';
-        if (collectionInfo.nextCollectionDateStr) {
-            // Assume date string is YYYY-MM-DD
-            const parts = collectionInfo.nextCollectionDateStr.split('-');
-            const nextDateObj = new Date(parts[0], parts[1] - 1, parts[2]);
-            nextDateFormatted = nextDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-            nextDayName = nextDateObj.toLocaleDateString('en-US', { weekday: 'long' });
+        // Format the upcoming collection date
+        let collectionDateStr = '(No Data)';
+        let collectionDayName = '(No Data)';
+        let collectionWasteType = '(No Data)';
+        let daysUntilCollection = 0;
+        let hasCollection = false;
+
+        if (upcomingCollection) {
+            hasCollection = true;
+            collectionDateStr = upcomingCollection.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            collectionDayName = upcomingCollection.date.toLocaleDateString('en-US', { weekday: 'long' });
+            collectionWasteType = upcomingCollection.wasteType;
+            const localNow = getLocalComponents(new Date());
+            const today = new Date(localNow.year, localNow.month, localNow.day);
+            daysUntilCollection = daysBetween(today, upcomingCollection.date);
         }
 
+        // Format the next collection after the upcoming one
+        let nextDateFormatted = '(No Upcoming Data)';
+        let nextDayName = '(No Upcoming Data)';
+        let nextWasteType = '(No Upcoming Data)';
+
+        if (secondCollection) {
+            nextDateFormatted = secondCollection.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            nextDayName = secondCollection.date.toLocaleDateString('en-US', { weekday: 'long' });
+            nextWasteType = secondCollection.wasteType;
+        }
+
+        // Should we send the alert today? Only if today is exactly `daysBefore` days before the collection
+        const shouldSendToday = hasCollection && daysUntilCollection === daysBefore;
+
         let finalMessage = template
-            .replace(/{collection_waste_type}/g, collectionInfo.wasteType || '(No Data)')
-            .replace(/{collection_date}/g, dateStr)
-            .replace(/{collection_day_name}/g, dayName)
-            .replace(/{days_until_collection}/g, daysBefore)
-            .replace(/{next_collection_date}/g, nextDateFormatted || '(No Upcoming Data)')
-            .replace(/{next_collection_day_name}/g, nextDayName || '(No Upcoming Data)')
-            .replace(/{next_collection_waste_type}/g, collectionInfo.nextWasteType || '(No Upcoming Data)');
+            .replace(/{collection_waste_type}/g, collectionWasteType)
+            .replace(/{collection_date}/g, collectionDateStr)
+            .replace(/{collection_day_name}/g, collectionDayName)
+            .replace(/{days_until_collection}/g, daysUntilCollection)
+            .replace(/{next_collection_date}/g, nextDateFormatted)
+            .replace(/{next_collection_day_name}/g, nextDayName)
+            .replace(/{next_collection_waste_type}/g, nextWasteType);
 
         return {
             config,
@@ -494,8 +548,15 @@ const generateCollectionAlertPreview = async () => {
             template,
             finalMessage,
             daysBefore,
-            collectionInfo,
-            shouldSendToday: collectionInfo.hasCollection && (daysBefore === daysBefore), // fallback boolean
+            collectionInfo: {
+                hasCollection,
+                wasteType: collectionWasteType,
+                targetDateLabel: collectionDateStr,
+                nextCollectionDateStr: secondCollection ? `${secondCollection.date.getFullYear()}-${(secondCollection.date.getMonth() + 1).toString().padStart(2, '0')}-${secondCollection.date.getDate().toString().padStart(2, '0')}` : '',
+                nextWasteType
+            },
+            daysUntilCollection,
+            shouldSendToday,
             canSend: Boolean(template) && finalTargetJids.length > 0
         };
     } catch (error) {
