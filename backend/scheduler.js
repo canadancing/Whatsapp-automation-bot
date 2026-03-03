@@ -18,6 +18,47 @@ let dailyDutyJob = null;
 let collectionAlertJob = null;
 let cleaningReminderJob = null;
 const customReminderJobs = {};
+const TIMEZONE = process.env.TIMEZONE || 'America/Vancouver';
+
+/**
+ * Gets local date components for the configured timezone.
+ * Returns an object with { year, month, day, weekday, hour }
+ */
+const getLocalComponents = (date = new Date()) => {
+    const fmt = new Intl.DateTimeFormat('en-US', {
+        timeZone: TIMEZONE,
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hour12: false,
+        weekday: 'long'
+    });
+    const parts = fmt.formatToParts(date).reduce((acc, part) => {
+        acc[part.type] = part.value;
+        return acc;
+    }, {});
+
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return {
+        year: parseInt(parts.year),
+        month: parseInt(parts.month) - 1,
+        day: parseInt(parts.day),
+        weekday: days.indexOf(parts.weekday),
+        hour: parseInt(parts.hour)
+    };
+};
+
+/**
+ * Checks if two dates are the same day in the configured timezone.
+ */
+const isSameDayInTimezone = (date1, date2) => {
+    const c1 = getLocalComponents(date1);
+    const c2 = getLocalComponents(date2);
+    return c1.year === c2.year && c1.month === c2.month && c1.day === c2.day;
+};
 
 const isTruthy = (value, fallback = false) => {
     if (typeof value === 'boolean') return value;
@@ -69,7 +110,8 @@ const getCollectionEventByOffsetDays = async (icalUrl, offsetDays = 1) => {
         const events = ical.parseICS(res.data);
 
         const now = new Date();
-        const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offsetDays);
+        const localNow = getLocalComponents(now);
+        const targetDate = new Date(localNow.year, localNow.month, localNow.day + offsetDays);
 
         let wasteType = 'No collection scheduled';
         let hasCollection = false;
@@ -80,11 +122,7 @@ const getCollectionEventByOffsetDays = async (icalUrl, offsetDays = 1) => {
             if (ev.type !== 'VEVENT' || !ev.start) continue;
 
             const evDate = new Date(ev.start);
-            if (
-                evDate.getFullYear() === targetDate.getFullYear() &&
-                evDate.getMonth() === targetDate.getMonth() &&
-                evDate.getDate() === targetDate.getDate()
-            ) {
+            if (isSameDayInTimezone(evDate, targetDate)) {
                 wasteType = ev.summary || 'Collection Event';
                 hasCollection = true;
                 break;
@@ -122,7 +160,9 @@ const getNextCollectionEvent = async (icalUrl) => {
     try {
         const res = await axios.get(icalUrl);
         const events = ical.parseICS(res.data);
-        const today = toMidnight(new Date());
+
+        const localNow = getLocalComponents(new Date());
+        const today = new Date(localNow.year, localNow.month, localNow.day);
 
         let nextDate = null;
         let nextWasteType = null;
@@ -132,7 +172,10 @@ const getNextCollectionEvent = async (icalUrl) => {
             const ev = events[key];
             if (ev.type !== 'VEVENT' || !ev.start) continue;
 
-            const evDate = toMidnight(new Date(ev.start));
+            const evDateRaw = new Date(ev.start);
+            const evLocal = getLocalComponents(evDateRaw);
+            const evDate = new Date(evLocal.year, evLocal.month, evLocal.day);
+
             if (evDate < today) continue;
 
             if (!nextDate || evDate < nextDate) {
@@ -254,9 +297,9 @@ const generateDailyDutyPreview = async (isManual = false) => {
 
     const template = config.template || '';
 
-    const today = new Date();
-    let weekday = today.getDay() - 1;
-    if (weekday === -1) weekday = 6;
+    const local = getLocalComponents();
+    let weekday = local.weekday - 1; // Mon=0, Tue=1, ..., Sat=5, Sun=-1
+    if (weekday === -1) weekday = 6; // Sun=6
 
     const skipScheduled = weekday === 6 && !isManual;
 
@@ -600,7 +643,7 @@ const initScheduler = async () => {
     if (collectionAlertJob) collectionAlertJob.stop();
     if (cleaningReminderJob) cleaningReminderJob.stop();
 
-    const tz = process.env.TIMEZONE || 'America/Vancouver';
+    const tz = TIMEZONE;
 
     if (dailySchedule) {
         dailyDutyJob = cron.schedule(dailySchedule, () => sendWhatsAppMessage(false), { timezone: tz });
