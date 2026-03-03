@@ -1080,7 +1080,8 @@ function App() {
                   style={{ minHeight: '130px' }}
                 ></textarea>
                 <div className="helper-text">
-                  Variables: {'{collection_waste_type}'}, {'{collection_date}'}, {'{collection_day_name}'}, {'{days_until_collection}'}.
+                  Variables: {'{collection_waste_type}'}, {'{collection_date}'}, {'{collection_day_name}'}, {'{days_until_collection}'}.<br />
+                  Upcoming Variables: {'{next_collection_date}'}, {'{next_collection_day_name}'}, {'{next_collection_waste_type}'}.
                 </div>
               </div>
 
@@ -1574,8 +1575,9 @@ function App() {
                     </button>
                   </div>
                 </div>
-                <div className="helper-text" style={{ marginBottom: '14px' }}>
-                  Add multiple groups/contacts, toggle each reminder type on/off, and remove entries you do not want.
+                <div className="helper-text" style={{ marginBottom: '14px', marginTop: '-8px' }}>
+                  Add multiple groups/contacts, toggle each reminder type on/off, and remove entries you do not want.<br />
+                  <em>Note: The "Test Target" checkbox is for immediate manual testing only. It is temporary and does not need to be saved.</em>
                 </div>
 
                 <div className="list-stack">

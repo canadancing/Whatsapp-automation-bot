@@ -120,6 +120,7 @@ const getCollectionEventByOffsetDays = async (icalUrl, offsetDays = 1) => {
             if (!Object.prototype.hasOwnProperty.call(events, key)) continue;
             const ev = events[key];
             const evDateRaw = new Date(ev.start);
+
             let evYear, evMonth, evDay;
             if (ev.start.dateOnly || (evDateRaw.getUTCHours() === 0 && evDateRaw.getUTCMinutes() === 0)) {
                 evYear = evDateRaw.getUTCFullYear();
@@ -153,6 +154,79 @@ const getCollectionEventByOffsetDays = async (icalUrl, offsetDays = 1) => {
             hasCollection: false,
             targetDate: null,
             targetDateLabel: 'Unknown'
+        };
+    }
+};
+
+const checkCollectionForDate = async (icalUrl, targetDate) => {
+    if (!icalUrl) {
+        return {
+            wasteType: '',
+            hasCollection: false,
+            targetDate: null,
+            targetDateLabel: 'Unknown',
+            nextCollectionDateStr: '',
+            nextWasteType: ''
+        };
+    }
+
+    try {
+        const res = await axios.get(icalUrl);
+        const events = ical.parseICS(res.data);
+
+        let wasteType = '';
+        let hasCollection = false;
+        let nextCollectionDateStr = '';
+        let nextWasteType = '';
+
+        for (const key in events) {
+            if (!Object.prototype.hasOwnProperty.call(events, key)) continue;
+            const ev = events[key];
+            const evDateRaw = new Date(ev.start);
+
+            let evYear, evMonth, evDay;
+            if (ev.start.dateOnly || (evDateRaw.getUTCHours() === 0 && evDateRaw.getUTCMinutes() === 0)) {
+                evYear = evDateRaw.getUTCFullYear();
+                evMonth = evDateRaw.getUTCMonth();
+                evDay = evDateRaw.getUTCDate();
+            } else {
+                const evLocal = getLocalComponents(evDateRaw);
+                evYear = evLocal.year;
+                evMonth = evLocal.month;
+                evDay = evLocal.day;
+            }
+            const evDate = new Date(evYear, evMonth, evDay);
+
+            if (isSameDayInTimezone(evDate, targetDate)) {
+                wasteType = ev.summary || 'Collection Event';
+                hasCollection = true;
+                // Don't break here! We need to continue scanning for the NEXT event
+            } else if (evDate > targetDate) {
+                // Find the soonest event AFTER the target collection date
+                if (!nextCollectionDateStr || evDate < new Date(nextCollectionDateStr)) {
+                    nextCollectionDateStr = evDate.toISOString().split('T')[0];
+                    nextWasteType = ev.summary || 'Collection Event';
+                }
+            }
+        }
+
+        return {
+            wasteType,
+            hasCollection,
+            targetDate,
+            targetDateLabel: targetDate.toLocaleDateString(),
+            nextCollectionDateStr,
+            nextWasteType
+        };
+    } catch (err) {
+        console.error('Error fetching iCal:', err.message);
+        return {
+            wasteType: '',
+            hasCollection: false,
+            targetDate: null,
+            targetDateLabel: 'Unknown',
+            nextCollectionDateStr: '',
+            nextWasteType: ''
         };
     }
 };
@@ -334,7 +408,7 @@ const generateDailyDutyPreview = async (isManual = false) => {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const today_name = weekday < 6 ? days[weekday] : 'Sunday';
 
-    const collectionInfo = await getCollectionEventByOffsetDays(activeIcalUrl, 1);
+    const collectionInfo = await checkCollectionForDate(activeIcalUrl, new Date(local.year, local.month, local.day + 1));
 
     const finalMessage = template
         .replace(/{today_name}/g, today_name)
@@ -356,45 +430,78 @@ const generateDailyDutyPreview = async (isManual = false) => {
 };
 
 const generateCollectionAlertPreview = async () => {
-    const [config, enabledTargets, enabledIcalSources] = await Promise.all([
-        getAllConfig(),
-        getEnabledWhatsAppTargets('collection'),
-        getEnabledIcalSources()
-    ]);
+    try {
+        const [config, enabledTargets] = await Promise.all([
+            getAllConfig(),
+            getEnabledWhatsAppTargets('collection')
+        ]);
 
-    const finalTargetJids = getEnabledTargetsWithFallback(config, enabledTargets);
-    const activeIcalUrl = getActiveIcalUrl(config, enabledIcalSources);
-    const daysBefore = parseDaysBefore(config.collection_alert_days_before);
+        const finalTargetJids = getEnabledTargetsWithFallback(config, enabledTargets);
+        const daysBefore = parseDaysBefore(config.collection_alert_days_before);
 
-    const defaultTemplate =
-        '🚛 *Collection Reminder*\n\nUpcoming collection: *{collection_waste_type}*\nCollection day: *{collection_date}* ({collection_day_name})\nAlert lead time: {days_until_collection} day(s).';
-    const template = config.collection_template || defaultTemplate;
+        const defaultTemplate =
+            '🚛 *Collection Reminder*\n\nUpcoming collection: *{collection_waste_type}*\nCollection day: *{collection_date}* ({collection_day_name})\nAlert lead time: {days_until_collection} day(s).\n\nNext scheduled collection: *{next_collection_waste_type}* on *{next_collection_date}* ({next_collection_day_name}).';
 
-    const collectionInfo = await getNextCollectionEvent(activeIcalUrl);
-    const eventDate = collectionInfo.eventDate;
-    const dayName = eventDate
-        ? eventDate.toLocaleDateString(undefined, { weekday: 'long' })
-        : 'Unknown';
+        const todayMs = new Date().setHours(0, 0, 0, 0);
+        const targetDate = new Date(todayMs + daysBefore * 24 * 60 * 60 * 1000);
+        const dateStr = targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        const dayName = targetDate.toLocaleDateString('en-US', { weekday: 'long' });
 
-    const safeTemplate = template.replace(/\\'/g, "'");
-    const finalMessage = safeTemplate
-        .replace(/{collection_waste_type}/g, collectionInfo.wasteType)
-        .replace(/{collection_date}/g, collectionInfo.eventDateLabel)
-        .replace(/{collection_day_name}/g, dayName)
-        .replace(/{days_until_collection}/g, String(collectionInfo.daysUntilCollection ?? daysBefore))
-        .replace(/{tomorrow_waste_type}/g, collectionInfo.wasteType);
+        let collectionInfo = { hasCollection: false, wasteType: '', nextCollectionDateStr: '', nextWasteType: '' };
 
-    return {
-        config,
-        finalTargetJids,
-        activeIcalUrl,
-        template,
-        finalMessage,
-        daysBefore,
-        collectionInfo,
-        shouldSendToday: collectionInfo.hasCollection && (collectionInfo.daysUntilCollection === daysBefore),
-        canSend: Boolean(template) && finalTargetJids.length > 0
-    };
+        const enabledIcalSources = await getEnabledIcalSources();
+        const icalSources = enabledIcalSources.length > 0 ? enabledIcalSources : (config.ical_url ? [{ url: config.ical_url }] : []);
+
+        for (const source of icalSources) {
+            if (!isTruthy(source.enabled) && source.url !== config.ical_url) continue; // Only check enabled sources or the legacy config.ical_url
+            const info = await checkCollectionForDate(source.url, targetDate);
+            if (info.hasCollection) {
+                collectionInfo = info;
+                break;
+            } else if (info.nextCollectionDateStr) {
+                // Keep track of next event even if targetDate has no collection
+                if (!collectionInfo.nextCollectionDateStr || new Date(info.nextCollectionDateStr) < new Date(collectionInfo.nextCollectionDateStr)) {
+                    collectionInfo.nextCollectionDateStr = info.nextCollectionDateStr;
+                    collectionInfo.nextWasteType = info.nextWasteType;
+                }
+            }
+        }
+
+        const template = config.collection_template || defaultTemplate;
+
+        let nextDateFormatted = '';
+        let nextDayName = '';
+        if (collectionInfo.nextCollectionDateStr) {
+            // Assume date string is YYYY-MM-DD
+            const parts = collectionInfo.nextCollectionDateStr.split('-');
+            const nextDateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+            nextDateFormatted = nextDateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            nextDayName = nextDateObj.toLocaleDateString('en-US', { weekday: 'long' });
+        }
+
+        let finalMessage = template
+            .replace(/{collection_waste_type}/g, collectionInfo.wasteType || '(No Data)')
+            .replace(/{collection_date}/g, dateStr)
+            .replace(/{collection_day_name}/g, dayName)
+            .replace(/{days_until_collection}/g, daysBefore)
+            .replace(/{next_collection_date}/g, nextDateFormatted || '(No Upcoming Data)')
+            .replace(/{next_collection_day_name}/g, nextDayName || '(No Upcoming Data)')
+            .replace(/{next_collection_waste_type}/g, collectionInfo.nextWasteType || '(No Upcoming Data)');
+
+        return {
+            config,
+            finalTargetJids,
+            template,
+            finalMessage,
+            daysBefore,
+            collectionInfo,
+            shouldSendToday: collectionInfo.hasCollection && (daysBefore === daysBefore), // fallback boolean
+            canSend: Boolean(template) && finalTargetJids.length > 0
+        };
+    } catch (error) {
+        await addLog('ERROR', 'System Failure', error.message);
+        return { hasCollection: false, canSend: false, activeIcalUrl: '', template: '', finalMessage: '' };
+    }
 };
 
 const sendWhatsAppMessage = async (isManual = false, options = {}) => {
