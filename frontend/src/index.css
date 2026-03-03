@@ -353,7 +353,7 @@ textarea {
   width: auto;
 }
 
-.icon-btn {
+.btn.icon-btn {
   width: 36px;
   height: 36px;
   padding: 0 !important;

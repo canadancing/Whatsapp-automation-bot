@@ -574,6 +574,10 @@ const sendCleaningReminder = async (isManual = false, options = {}) => {
             return { status: 'SKIPPED', action: 'cleaning-reminder', detail: 'Cleaning reminder disabled.' };
         }
 
+        if (options.testTargetJids && options.testTargetJids.length > 0) {
+            finalTargetJids = options.testTargetJids;
+        }
+
         const { waDelivered, waResults, configError } = await sendToWhatsAppTargets(finalTargetJids, finalMessage);
         if (configError) {
             await addLog('ERROR', 'Missing Evolution API Key', 'Check .env file.');
