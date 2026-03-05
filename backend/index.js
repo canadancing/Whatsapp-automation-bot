@@ -28,7 +28,8 @@ const {
     generateCollectionAlertPreview,
     generateDailyDutyPreview,
     generateCleaningReminderPreview,
-    sendCustomReminder
+    sendCustomReminder,
+    getNextTriggerTime
 } = require('./scheduler');
 
 const app = express();
@@ -276,6 +277,7 @@ app.get('/api/preview-daily-duty', async (req, res) => {
             message: preview.finalMessage || '',
             targets: preview.finalTargetJids || [],
             skip_scheduled: Boolean(preview.skipScheduled),
+            next_trigger: preview.nextTrigger || null,
             can_send: Boolean(preview.canSend)
         });
     } catch (error) {
@@ -311,6 +313,7 @@ app.get('/api/preview-message', async (req, res) => {
             next_collection_waste_type: preview.collectionInfo?.nextWasteType || '',
             active_ical_url: preview.activeIcalUrl || '',
             has_template: Boolean(preview.template),
+            next_trigger: preview.nextTrigger || null,
             can_send: Boolean(preview.canSend)
         });
     } catch (error) {
@@ -337,6 +340,7 @@ app.get('/api/preview-cleaning', async (req, res) => {
             success: true,
             message: preview.finalMessage || '',
             targets: preview.finalTargetJids || [],
+            next_trigger: preview.nextTrigger || null,
             can_send: Boolean(preview.canSend)
         });
     } catch (error) {
@@ -371,11 +375,13 @@ app.get('/api/preview-custom/:id', async (req, res) => {
         ]);
 
         const reminderTargets = enabledTargets.filter(t => (t.custom_reminders || []).includes(reminder.id)).map(t => t.label || t.jid);
+        const nextTrigger = getNextTriggerTime(reminder.cron_schedule);
 
         res.json({
             success: true,
             message: reminder.template || '',
             targets: reminderTargets,
+            next_trigger: nextTrigger || null,
             can_send: Boolean(reminder.template) && reminderTargets.length > 0
         });
     } catch (error) {

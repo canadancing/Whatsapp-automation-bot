@@ -1123,6 +1123,11 @@ function App() {
                 <div className="preview-meta">
                   Targets: {(dailyDutyPreview.targets || []).join(', ') || 'None configured'}
                 </div>
+                {dailyDutyPreview.next_trigger && (
+                  <div className="preview-meta">
+                    Next Trigger: {new Date(dailyDutyPreview.next_trigger).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  </div>
+                )}
                 <div className="preview-meta">
                   Can send: {dailyDutyPreview.can_send ? 'Yes' : 'No — check targets & template'}
                 </div>
@@ -1236,6 +1241,11 @@ function App() {
                   <div className="preview-meta">
                     Targets: {(messagePreview.targets || []).join(', ') || 'None configured'}
                   </div>
+                  {messagePreview.next_trigger && (
+                    <div className="preview-meta">
+                      Next Trigger: {new Date(messagePreview.next_trigger).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </div>
+                  )}
                   <div className="preview-meta">
                     Collection date: {messagePreview.collection_date || 'Unknown'} | Found event: {messagePreview.collection_exists ? 'Yes' : 'No'}
                   </div>
@@ -1428,6 +1438,11 @@ function App() {
                   <div className="preview-meta">
                     Targets: {(cleaningPreview.targets || []).join(', ') || 'None configured'}
                   </div>
+                  {cleaningPreview.next_trigger && (
+                    <div className="preview-meta">
+                      Next Trigger: {new Date(cleaningPreview.next_trigger).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </div>
+                  )}
                   <div className="preview-meta">
                     Can send: {cleaningPreview.can_send ? 'Yes' : 'No — check targets & template'}
                   </div>
@@ -1919,6 +1934,11 @@ function App() {
                   <div className="preview-meta">
                     Targets: {(customReminderPreview.targets || []).join(', ') || 'None configured'}
                   </div>
+                  {customReminderPreview.next_trigger && (
+                    <div className="preview-meta">
+                      Next Trigger: {new Date(customReminderPreview.next_trigger).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </div>
+                  )}
                   <div className="preview-meta">
                     Can send: {customReminderPreview.can_send ? 'Yes' : 'No - check targets & template'}
                   </div>

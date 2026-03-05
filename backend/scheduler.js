@@ -1,4 +1,5 @@
 const cron = require('node-cron');
+const cronParser = require('cron-parser');
 const axios = require('axios');
 const ical = require('node-ical');
 const {
@@ -19,6 +20,19 @@ let collectionAlertJob = null;
 let cleaningReminderJob = null;
 const customReminderJobs = {};
 const TIMEZONE = process.env.TIMEZONE || 'America/Vancouver';
+
+/**
+ * Gets the next trigger time in ISO format for a given cron expression.
+ */
+const getNextTriggerTime = (cronExpression) => {
+    if (!cronExpression) return null;
+    try {
+        const interval = cronParser.CronExpressionParser.parse(cronExpression, { tz: TIMEZONE });
+        return interval.next().toDate().toISOString();
+    } catch (err) {
+        return null;
+    }
+};
 
 /**
  * Gets local date components for the configured timezone.
@@ -399,6 +413,7 @@ const generateDailyDutyPreview = async (isManual = false) => {
     if (weekday === -1) weekday = 6; // Sun=6
 
     const skipScheduled = weekday === 6 && !isManual;
+    const nextTrigger = getNextTriggerTime(config.schedule);
 
     // Rooms are assigned Mon(0)=1 through Sat(5)=6; Sunday(6) is a rest day.
     const rooms = [1, 2, 3, 4, 5, 6];
@@ -426,6 +441,7 @@ const generateDailyDutyPreview = async (isManual = false) => {
         template,
         finalMessage,
         skipScheduled,
+        nextTrigger,
         canSend: Boolean(template) && finalTargetJids.length > 0,
         wasteType: collectionInfo.wasteType
     };
@@ -533,6 +549,9 @@ const generateCollectionAlertPreview = async () => {
         // Should we send the alert today? Only if today is exactly `daysBefore` days before the collection
         const shouldSendToday = hasCollection && daysUntilCollection === daysBefore;
 
+        const scheduleCron = config.collection_alert_time ? parseTimeToCron(config.collection_alert_time) : '0 19 * * *';
+        const nextTrigger = getNextTriggerTime(scheduleCron);
+
         let finalMessage = template
             .replace(/{collection_waste_type}/g, collectionWasteType)
             .replace(/{collection_date}/g, collectionDateStr)
@@ -557,6 +576,7 @@ const generateCollectionAlertPreview = async () => {
             },
             daysUntilCollection,
             shouldSendToday,
+            nextTrigger,
             canSend: Boolean(template) && finalTargetJids.length > 0
         };
     } catch (error) {
@@ -716,12 +736,14 @@ const generateCleaningReminderPreview = async () => {
     const defaultTemplate =
         '\ud83e\uddf9 *Weekly Reminder*\n\nHey everyone! This is your weekly reminder.\n\nAll members please review tasks. Let\'s keep our home clean together! \ud83d\udcaa\n\n(This is an automatic message)';
     const template = config.cleaning_reminder_template || defaultTemplate;
+    const nextTrigger = getNextTriggerTime(config.cleaning_reminder_schedule);
 
     return {
         config,
         finalTargetJids,
         template,
         finalMessage: template,
+        nextTrigger,
         canSend: Boolean(template) && finalTargetJids.length > 0
     };
 };
@@ -891,5 +913,6 @@ module.exports = {
     sendCustomReminder,
     generateCollectionAlertPreview,
     generateDailyDutyPreview,
-    generateCleaningReminderPreview
+    generateCleaningReminderPreview,
+    getNextTriggerTime
 };
