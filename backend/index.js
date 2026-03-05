@@ -170,7 +170,8 @@ app.post('/api/config', async (req, res) => {
                     label: String(target?.label || '').trim(),
                     daily_enabled: Boolean(target?.daily_enabled),
                     collection_enabled: Boolean(target?.collection_enabled),
-                    cleaning_enabled: Boolean(target?.cleaning_enabled)
+                    cleaning_enabled: Boolean(target?.cleaning_enabled),
+                    custom_reminders: Array.isArray(target?.custom_reminders) ? target.custom_reminders : []
                 }))
                 .filter((target) => target.jid.length > 0);
         };
@@ -349,6 +350,34 @@ app.post('/api/test-cleaning-send', async (req, res) => {
         await addLog('SYSTEM', 'Cleaning Reminder Test Triggered', 'User requested a manual cleaning reminder send.');
         sendCleaningReminder(true, { testTargetJids: req.body.testTargetJids });
         res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Preview a custom reminder
+app.get('/api/preview-custom/:id', async (req, res) => {
+    try {
+        const reminders = await getCustomReminders();
+        const reminder = reminders.find(r => r.id === parseInt(req.params.id, 10));
+
+        if (!reminder) {
+            return res.status(404).json({ error: 'Reminder not found' });
+        }
+
+        const [config, enabledTargets] = await Promise.all([
+            getAllConfig(),
+            getWhatsAppTargets()
+        ]);
+
+        const reminderTargets = enabledTargets.filter(t => (t.custom_reminders || []).includes(reminder.id)).map(t => t.label || t.jid);
+
+        res.json({
+            success: true,
+            message: reminder.template || '',
+            targets: reminderTargets,
+            can_send: Boolean(reminder.template) && reminderTargets.length > 0
+        });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

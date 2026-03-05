@@ -131,6 +131,7 @@ const makeIcalSource = (source = {}) => ({
 
 const sectionKeys = ['automation', 'whatsapp', 'telegram', 'collection', 'ical', 'template', 'cleaning', 'settings'];
 
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('dashboard_token'));
   const [authChecked, setAuthChecked] = useState(false);
@@ -240,6 +241,8 @@ function App() {
   const [dailyDutyPreview, setDailyDutyPreview] = useState(null);
   const [messagePreview, setMessagePreview] = useState(null);
   const [cleaningPreview, setCleaningPreview] = useState(null);
+  const [customReminderPreview, setCustomReminderPreview] = useState(null);
+  const [isPreviewingCustom, setIsPreviewingCustom] = useState(false);
 
   // Stats array
   const [savingState, setSavingState] = useState({
@@ -312,18 +315,49 @@ function App() {
   };
 
   const handleAddCustomReminder = () => {
-    setCustomReminders(prev => [
-      ...prev,
-      {
-        id: `temp-${Date.now()}`,
-        isNew: true,
-        title: 'New Reminder',
-        cron_schedule: '0 10 * * *',
-        template: 'Hello! This is a custom reminder.',
-        enabled: true,
-        targets: []
+    const newId = `temp-${Date.now()}`;
+    const newReminder = {
+      id: newId,
+      isNew: true,
+      title: 'New Reminder',
+      cron_schedule: '0 10 * * *',
+      template: 'Hello! This is a custom reminder.',
+      enabled: true,
+      targets: []
+    };
+    setCustomReminders(prev => [...prev, newReminder]);
+    setActiveTab(`custom-${newId}`);
+    setEditingTitle(`custom-${newId}`);
+  };
+
+  const handleCustomTitleSave = async (reminder, newTitle) => {
+    setEditingTitle(null);
+    const trimmed = (newTitle || '').trim();
+    if (!trimmed) {
+      if (reminder.isNew) {
+        setCustomReminders(prev => prev.filter(r => r.id !== reminder.id));
+        setActiveTab('analytics');
       }
-    ]);
+      return;
+    }
+
+    const updatedReminder = { ...reminder, title: trimmed };
+    handleUpdateCustomReminder(reminder.id, 'title', trimmed);
+
+    try {
+      const res = await axios.post(`${API_URL}/custom-reminders`, updatedReminder);
+      const newId = res.data.id;
+
+      const fetchRes = await axios.get(`${API_URL}/custom-reminders`);
+      setCustomReminders(fetchRes.data);
+
+      if (reminder.isNew) {
+        setActiveTab(`custom-${newId}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save title: ' + (err.response?.data?.error || err.message));
+    }
   };
 
   const handleUpdateCustomReminder = (id, field, value) => {
@@ -332,18 +366,25 @@ function App() {
 
   const handleSaveCustomReminder = async (reminder) => {
     try {
-      await axios.post(`${API_URL}/custom-reminders`, reminder);
+      const res = await axios.post(`${API_URL}/custom-reminders`, reminder);
+      const newId = res.data.id;
       await fetchCustomReminders();
-      alert('Saved successfully!');
+      if (reminder.isNew) {
+        setActiveTab(`custom-${newId}`);
+      }
+      setStatus('Custom Reminder Saved!');
+      setTimeout(() => setStatus('Connected & Active'), 1500);
     } catch (error) {
       console.error('Failed to save reminder:', error);
       alert('Failed to save: ' + (error.response?.data?.error || error.message));
+      setStatus('Save Failed');
     }
   };
 
   const handleDeleteCustomReminder = async (id, isNew) => {
     if (isNew) {
-      setCustomReminders(prev => prev.filter(r => r.id !== id));
+      setCustomReminders((prev) => prev.filter((r) => r.id !== id));
+      setActiveTab('analytics');
       setConfirmDeleteId(null);
       return;
     }
@@ -497,6 +538,10 @@ function App() {
       setStatus('Connected & Active');
     } catch (error) {
       console.error('Error fetching data:', error);
+      const [customReminderPreview, setCustomReminderPreview] = useState(null);
+      const [isPreviewingCustom, setIsPreviewingCustom] = useState(false);
+
+      // Fetch initial data
       setStatus('Backend Offline');
     }
   };
@@ -803,12 +848,16 @@ function App() {
   };
 
   const getActiveTabTitle = () => {
+    if (activeTab.startsWith('custom-')) {
+      const crId = activeTab.split('custom-')[1];
+      const cr = customReminders.find(r => r.id.toString() === crId);
+      return cr ? cr.title : 'Custom Reminder';
+    }
     switch (activeTab) {
       case 'whatsapp': return 'WhatsApp Targets';
       case 'daily': return config.daily_duty_title || 'Daily Duty Alert';
       case 'waste': return config.collection_calendar_title || 'Collection Calendar';
       case 'cleaning': return config.weekly_reminder_title || 'Weekly Reminder';
-      case 'custom': return 'Custom Reminders';
       case 'settings': return 'System Settings';
       case 'analytics': return 'Dashboard Analytics';
       default: return 'WhatsApp Control Center';
@@ -897,11 +946,41 @@ function App() {
           ))}
 
           <div className="nav-section-title">Extensions</div>
+          {customReminders.map(cr => (
+            <button
+              key={cr.id}
+              className={`tab-btn ${activeTab === `custom-${cr.id}` ? 'active' : ''}`}
+              onClick={() => setActiveTab(`custom-${cr.id}`)}
+              onDoubleClick={(e) => { e.preventDefault(); setEditingTitle(`custom-${cr.id}`); }}
+            >
+              <Zap size={18} />
+              {editingTitle === `custom-${cr.id}` ? (
+                <input
+                  className="inline-title-input"
+                  autoFocus
+                  defaultValue={cr.title}
+                  onClick={e => e.stopPropagation()}
+                  onBlur={e => handleCustomTitleSave(cr, e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.target.blur(); } if (e.key === 'Escape') { setEditingTitle(null); } }}
+                />
+              ) : (
+                <span className="tab-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {cr.title}
+                  <Pencil
+                    size={12}
+                    className="tab-edit-icon"
+                    onClick={e => { e.stopPropagation(); setEditingTitle(`custom-${cr.id}`); }}
+                  />
+                </span>
+              )}
+            </button>
+          ))}
           <button
-            className={`tab-btn ${activeTab === 'custom' ? 'active' : ''}`}
-            onClick={() => setActiveTab('custom')}
+            className={`tab-btn`}
+            onClick={handleAddCustomReminder}
+            title="Click to add a new custom reminder"
           >
-            <Plus size={18} /> <span className="tab-title">Custom Reminders</span>
+            <Plus size={18} /> <span className="tab-title">Add Custom Reminder</span>
           </button>
 
           <div className="nav-section-title">System</div>
@@ -1733,109 +1812,124 @@ function App() {
           )
         }
 
-        {
-          activeTab === 'custom' && (
-            <div className="tab-content fade-in">
+        {activeTab.startsWith('custom-') && (() => {
+          const crId = activeTab.split('custom-')[1];
+          const reminder = customReminders.find(r => r.id.toString() === crId);
+          if (!reminder) return null;
+
+          return (
+            <div className="tab-content fade-in" key={reminder.id}>
               <div className="glass-card">
                 <div className="card-header">
                   <div className="card-header-main">
-                    <Plus size={20} /> Custom Reminders
+                    <Clock size={20} />
+                    Automation Engine
+                  </div>
+                  <div className="card-header-tools">
+                    <button
+                      className="btn btn-secondary icon-btn"
+                      title="Save Reminder"
+                      onClick={() => handleSaveCustomReminder(reminder)}
+                    >
+                      <Save size={16} />
+                    </button>
+                    <button
+                      className={`btn btn-secondary icon-btn ${confirmDeleteId === reminder.id ? 'btn-danger' : ''}`}
+                      title={confirmDeleteId === reminder.id ? "Click again to confirm" : "Delete Reminder"}
+                      style={{
+                        backgroundColor: confirmDeleteId === reminder.id ? '#ff4b4b' : '',
+                        color: confirmDeleteId === reminder.id ? '#fff' : ''
+                      }}
+                      onClick={() => handleDeleteCustomReminder(reminder.id, reminder.isNew)}
+                      onMouseLeave={() => setConfirmDeleteId(null)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 </div>
-                <div className="helper-text" style={{ marginBottom: '14px' }}>
-                  Create unlimited custom automated messages with their own schedules and targets.
+
+                <div className="input-group">
+                  <label>Cron Schedule</label>
+                  <input
+                    type="text"
+                    value={reminder.cron_schedule}
+                    onChange={(e) => handleUpdateCustomReminder(reminder.id, 'cron_schedule', e.target.value)}
+                    placeholder="0 10 * * *"
+                  />
+                  <div className="helper-text">Format: Minute Hour Day Month Day-of-Week.</div>
                 </div>
 
-                <div className="list-stack">
-                  {customReminders.map((reminder) => (
-                    <div className="list-item" key={reminder.id}>
-                      <div className="list-item-top" style={{ flexWrap: 'wrap', gap: '8px' }}>
-                        <div style={{ display: 'flex', gap: '16px', flex: 1 }}>
-                          <label className="toggle-label">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(reminder.enabled)}
-                              onChange={(e) => handleUpdateCustomReminder(reminder.id, 'enabled', e.target.checked)}
-                            />
-                            Enabled
-                          </label>
-                          <span style={{ fontWeight: 600, color: 'var(--primary)', padding: '4px 0' }}>{reminder.title}</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                            className="btn btn-secondary icon-btn"
-                            title="Test Send"
-                            onClick={() => handleTestCustomReminder(reminder.id)}
-                            disabled={reminder.isNew}
-                          >
-                            <Send size={16} />
-                          </button>
-                          <button
-                            className="btn btn-secondary icon-btn"
-                            title="Save Reminder"
-                            onClick={() => handleSaveCustomReminder(reminder)}
-                          >
-                            <Save size={16} />
-                          </button>
-                          <button
-                            className={`btn btn-secondary icon-btn ${confirmDeleteId === reminder.id ? 'btn-danger' : ''}`}
-                            title={confirmDeleteId === reminder.id ? "Click again to confirm" : "Delete Reminder"}
-                            style={{
-                              backgroundColor: confirmDeleteId === reminder.id ? '#ff4b4b' : '',
-                              color: confirmDeleteId === reminder.id ? '#fff' : ''
-                            }}
-                            onClick={() => handleDeleteCustomReminder(reminder.id, reminder.isNew)}
-                            onMouseLeave={() => setConfirmDeleteId(null)}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="grid-2">
-                        <div className="input-group">
-                          <label>Title</label>
-                          <input
-                            type="text"
-                            value={reminder.title}
-                            onChange={(e) => handleUpdateCustomReminder(reminder.id, 'title', e.target.value)}
-                            placeholder="My Custom Reminder"
-                          />
-                        </div>
-                        <div className="input-group">
-                          <label>Cron Schedule</label>
-                          <input
-                            type="text"
-                            value={reminder.cron_schedule}
-                            onChange={(e) => handleUpdateCustomReminder(reminder.id, 'cron_schedule', e.target.value)}
-                            placeholder="0 10 * * *"
-                          />
-                        </div>
-                      </div>
-                      <div className="input-group">
-                        <label>Message Template</label>
-                        <textarea
-                          value={reminder.template}
-                          onChange={(e) => handleUpdateCustomReminder(reminder.id, 'template', e.target.value)}
-                          placeholder="Your custom message here..."
-                          rows={3}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="section-actions">
-                  <button
-                    className="btn btn-secondary"
-                    style={{ width: 'auto' }}
-                    onClick={handleAddCustomReminder}
-                  >
-                    <Plus size={16} /> Add Custom Reminder
-                  </button>
+                <div className="list-item-top" style={{ marginTop: '16px' }}>
+                  <label className="toggle-label">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(reminder.enabled)}
+                      onChange={(e) => handleUpdateCustomReminder(reminder.id, 'enabled', e.target.checked)}
+                    />
+                    Enable Custom Reminder
+                  </label>
                 </div>
               </div>
+
+              <div className="glass-card">
+                <div className="card-header">
+                  <div className="card-header-main">
+                    <MessageSquare size={20} />
+                    Message Context Blueprint
+                  </div>
+                </div>
+                <div className="input-group">
+                  <label>Context Blueprint</label>
+                  <textarea
+                    value={reminder.template}
+                    onChange={(e) => handleUpdateCustomReminder(reminder.id, 'template', e.target.value)}
+                    placeholder="Type your custom message here..."
+                    style={{ minHeight: '120px' }}
+                  />
+                </div>
+              </div>
+
+              <div className="action-row" style={{ marginTop: '16px' }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={async () => {
+                    setIsPreviewingCustom(true);
+                    try {
+                      const res = await axios.get(`${API_URL}/preview-custom/${reminder.id}`);
+                      setCustomReminderPreview({ reminderId: reminder.id, ...res.data });
+                    } catch (err) { alert('Failed preview'); }
+                    finally { setIsPreviewingCustom(false); }
+                  }}
+                  disabled={isPreviewingCustom || reminder.isNew}
+                >
+                  <MessageSquare size={16} /> {isPreviewingCustom ? 'Previewing...' : 'Alert Preview'}
+                </button>
+                <button
+                  className="btn"
+                  onClick={() => handleTestCustomReminder(reminder.id)}
+                  disabled={reminder.isNew}
+                >
+                  <Send size={18} /> Send Test Now
+                </button>
+              </div>
+
+              {customReminderPreview && customReminderPreview.reminderId === reminder.id && (
+                <div className="preview-panel" style={{ marginTop: '16px' }}>
+                  <div className="preview-title">{reminder.title} Preview</div>
+                  <div className="preview-meta">
+                    Targets: {(customReminderPreview.targets || []).join(', ') || 'None configured'}
+                  </div>
+                  <div className="preview-meta">
+                    Can send: {customReminderPreview.can_send ? 'Yes' : 'No - check targets & template'}
+                  </div>
+                  <pre className="preview-message" style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                    {customReminderPreview.message || '(No message generated)'}
+                  </pre>
+                </div>
+              )}
             </div>
-          )}
+          );
+        })()}
       </main>
     </div >
   );

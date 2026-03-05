@@ -505,7 +505,7 @@ const saveCustomReminder = (reminder) => {
         db.serialize(() => {
             db.run('BEGIN TRANSACTION');
 
-            const isUpdate = reminder.id && reminder.id !== 'new';
+            const isUpdate = reminder.id && !reminder.isNew && typeof reminder.id === 'number';
             const query = isUpdate
                 ? 'UPDATE custom_reminders SET title = ?, cron_schedule = ?, template = ?, enabled = ? WHERE id = ?'
                 : 'INSERT INTO custom_reminders (title, cron_schedule, template, enabled) VALUES (?, ?, ?, ?)';
