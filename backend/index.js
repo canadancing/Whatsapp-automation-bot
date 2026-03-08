@@ -220,7 +220,8 @@ app.post('/api/config', async (req, res) => {
             Object.prototype.hasOwnProperty.call(updates, 'collection_alert_time') ||
             Object.prototype.hasOwnProperty.call(updates, 'cleaning_reminder_enabled') ||
             Object.prototype.hasOwnProperty.call(updates, 'cleaning_reminder_schedule') ||
-            Object.prototype.hasOwnProperty.call(updates, 'cleaning_reminder_time');
+            Object.prototype.hasOwnProperty.call(updates, 'cleaning_reminder_time') ||
+            normalizedTargets !== null; // Re-init when WhatsApp targets change
 
         if (shouldReinitScheduler) {
             await initScheduler();

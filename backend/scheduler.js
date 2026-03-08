@@ -8,7 +8,8 @@ const {
     addLog,
     getEnabledWhatsAppTargets,
     getEnabledIcalSources,
-    getCustomReminders
+    getCustomReminders,
+    getWhatsAppTargets
 } = require('./database');
 const dotenv = require('dotenv');
 const path = require('path');
@@ -810,7 +811,13 @@ const sendCleaningReminder = async (isManual = false, options = {}) => {
 const sendCustomReminder = async (reminder, isManual = false) => {
     try {
         const config = await getAllConfig();
-        const { id, title, template, targets } = reminder;
+        const { id, title, template } = reminder;
+
+        // Always fetch fresh targets from DB to avoid stale closure data
+        const allTargets = await getWhatsAppTargets();
+        const targets = allTargets
+            .filter(t => (t.custom_reminders || []).includes(id))
+            .map(t => t.jid);
 
         if (!template || !targets || targets.length === 0) {
             await addLog('ERROR', `Custom Reminder Error: ${title}`, 'Missing template or target configuration.');
