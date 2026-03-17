@@ -20,6 +20,9 @@ let dailyDutyJob = null;
 let collectionAlertJob = null;
 let cleaningReminderJob = null;
 const customReminderJobs = {};
+// IMPORTANT: TIMEZONE must be set explicitly in .env. On DST spring-forward days,
+// node-cron can miss scheduled triggers if the process was started before the
+// transition. Restarting PM2 after DST re-initializes crons correctly.
 const TIMEZONE = process.env.TIMEZONE || 'America/Vancouver';
 
 /**
@@ -134,6 +137,7 @@ const getCollectionEventByOffsetDays = async (icalUrl, offsetDays = 1) => {
         for (const key in events) {
             if (!Object.prototype.hasOwnProperty.call(events, key)) continue;
             const ev = events[key];
+            if (!ev.start) continue; // Skip non-event entries (like VCALENDAR, VTIMEZONE)
             const evDateRaw = new Date(ev.start);
 
             let evYear, evMonth, evDay;
@@ -652,7 +656,8 @@ const sendCollectionAlert = async (isManual = false, options = {}) => {
             finalTargetJids,
             finalMessage,
             collectionInfo,
-            daysBefore
+            daysBefore,
+            daysUntilCollection
         } = preview;
 
         if (!preview.canSend) {
@@ -671,16 +676,16 @@ const sendCollectionAlert = async (isManual = false, options = {}) => {
             return { status: 'SKIPPED', action: 'collection-alert', detail: 'No upcoming collection event found.' };
         }
 
-        if (collectionInfo.hasCollection && collectionInfo.daysUntilCollection !== daysBefore && !options.forceSend) {
+        if (collectionInfo.hasCollection && daysUntilCollection !== daysBefore && !options.forceSend) {
             await addLog(
                 'SKIPPED',
                 'Collection Alert Not Due',
-                `Next collection is in ${collectionInfo.daysUntilCollection} day(s); configured lead time is ${daysBefore} day(s).`
+                `Next collection is in ${daysUntilCollection} day(s); configured lead time is ${daysBefore} day(s).`
             );
             return {
                 status: 'SKIPPED',
                 action: 'collection-alert',
-                detail: `Not due yet (${collectionInfo.daysUntilCollection} days remaining).`
+                detail: `Not due yet (${daysUntilCollection} days remaining).`
             };
         }
 
